@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSEO — Batch Metadata Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e0f11; --surface: #16181c; --surface2: #1e2126;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --accent: #7c6ef7; --accent2: #a99ff8; --text: #f0eeff;
+  --muted: #8a8899; --muted2: #4a4958; --success: #4ade80; --danger: #f87171;
+  --mono: 'DM Mono', monospace; --display: 'Syne', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--display); min-height: 100vh; display: flex; flex-direction: column; }
+
+header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.75rem; border-bottom: 1px solid var(--border); background: rgba(14,15,17,0.95); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100; }
+.logo { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+.logo-icon { width: 26px; height: 26px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+.logo-icon svg { width: 14px; height: 14px; }
+.badge { font-family: var(--mono); font-size: 0.62rem; background: rgba(124,110,247,0.15); color: var(--accent2); border: 1px solid rgba(124,110,247,0.3); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.05em; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0.85rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.field-inline { display: flex; align-items: center; gap: 7px; }
+.field-inline label { font-family: var(--mono); font-size: 0.67rem; color: var(--muted); letter-spacing: 0.08em; white-space: nowrap; }
+.field-inline select, .field-inline input { background: var(--surface2); border: 1px solid var(--border2); border-radius: 7px; color: var(--text); font-family: var(--mono); font-size: 0.78rem; padding: 0.38rem 0.7rem; outline: none; appearance: none; transition: border-color 0.2s; }
+.field-inline select:focus, .field-inline input:focus { border-color: var(--accent); }
+.field-inline input { width: 200px; }
+.sep { width: 1px; height: 22px; background: var(--border2); margin: 0 2px; flex-shrink: 0; }
+
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 0.42rem 1rem; border-radius: 7px; font-family: var(--mono); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border2); background: transparent; color: var(--muted); white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent2); background: rgba(124,110,247,0.06); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: #6b5ef0; }
+.btn.success { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.3); color: var(--success); }
+.btn.success:hover:not(:disabled) { background: rgba(74,222,128,0.18); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.25); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+
+.upload-area { padding: 1.25rem 1.75rem; border-bottom: 1px solid var(--border); }
+.upload-zone { border: 1.5px dashed var(--border2); border-radius: 12px; padding: 1.5rem 1.75rem; cursor: pointer; transition: all 0.2s; position: relative; background: var(--surface); display: flex; align-items: center; justify-content: center; gap: 1.25rem; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(124,110,247,0.04); }
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon { width: 38px; height: 38px; background: rgba(124,110,247,0.12); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.upload-icon svg { width: 17px; height: 17px; color: var(--accent2); }
+.upload-title { font-size: 0.86rem; font-weight: 600; margin-bottom: 0.2rem; }
+.upload-sub { font-size: 0.71rem; color: var(--muted); font-family: var(--mono); }
+
+.content { flex: 1; overflow-y: auto; padding: 1.25rem 1.75rem; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; color: var(--muted2); text-align: center; padding: 5rem 2rem; }
+.empty-state svg { opacity: 0.18; }
+.empty-state p { font-size: 0.78rem; font-family: var(--mono); line-height: 1.75; }
+
+.img-grid { display: flex; flex-direction: column; gap: 8px; }
+
+/* Standard image row */
+.img-row { display: grid; grid-template-columns: 78px 1fr 1fr 42px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color 0.15s; }
+.img-row:hover { border-color: var(--border2); }
+.img-row.processing { border-color: rgba(124,110,247,0.35); }
+.img-row.done { border-color: rgba(74,222,128,0.2); }
+.img-row.error-state { border-color: rgba(248,113,113,0.3); }
+
+.cell-thumb { width: 78px; height: 78px; flex-shrink: 0; position: relative; overflow: hidden; background: #111; }
+.cell-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cell-spinner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); }
+.spin-lg { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+.cell-meta { padding: 9px 13px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-left: 1px solid var(--border); min-width: 0; overflow: hidden; }
+.cell-fname { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell-desc { font-size: 0.81rem; line-height: 1.45; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cell-desc.placeholder { color: var(--muted2); font-style: italic; font-size: 0.75rem; font-family: var(--mono); display: block; }
+.cell-desc[contenteditable="true"] { outline: none; cursor: text; border-radius: 4px; -webkit-line-clamp: unset; display: block; }
+.cell-desc[contenteditable="true"]:focus { background: rgba(124,110,247,0.08); border: 1px solid rgba(124,110,247,0.3); padding: 2px 5px; margin: -2px -5px; }
+
+.cell-kw { padding: 9px 13px; border-left: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start; overflow: hidden; max-height: 78px; min-width: 0; }
+.cell-kw.placeholder { align-items: center; color: var(--muted2); font-size: 0.72rem; font-family: var(--mono); }
+.kw-tag { background: rgba(124,110,247,0.1); color: var(--accent2); border: 1px solid rgba(124,110,247,0.18); border-radius: 4px; padding: 1px 6px; font-family: var(--mono); font-size: 0.63rem; white-space: nowrap; }
+.kw-more { font-family: var(--mono); font-size: 0.63rem; color: var(--muted2); padding: 1px 4px; }
+
+.cell-actions { border-left: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 6px; }
+.icon-btn { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.icon-btn:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+.icon-btn.danger:hover { border-color: rgba(248,113,113,0.4); color: var(--danger); background: rgba(248,113,113,0.08); }
+.icon-btn svg { width: 12px; height: 12px; }
+
+/* Video card */
+.video-card { background: var(--surface); border: 1px solid rgba(124,110,247,0.25); border-radius: 10px; overflow: hidden; transition: border-color 0.15s; }
+.video-card.done { border-color: rgba(74,222,128,0.2); }
+.video-card.error-state { border-color: rgba(248,113,113,0.3); }
+.video-card.processing { border-color: rgba(124,110,247,0.5); }
+
+.video-top { display: grid; grid-template-columns: 1fr 1fr 42px; }
+.video-preview-wrap { grid-column: 1 / -1; padding: 12px 13px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.video-preview-inner { display: flex; gap: 12px; align-items: flex-start; }
+.video-thumb-wrap { position: relative; width: 120px; height: 68px; flex-shrink: 0; border-radius: 6px; overflow: hidden; background: #111; border: 1px solid var(--border2); }
+.video-thumb-wrap canvas { width: 100%; height: 100%; object-fit: cover; }
+.video-badge { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.75); color: var(--accent2); font-family: var(--mono); font-size: 0.6rem; padding: 2px 5px; border-radius: 3px; }
+.video-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.video-fname { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.video-meta-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.meta-tag { font-family: var(--mono); font-size: 0.62rem; padding: 2px 7px; border-radius: 4px; background: rgba(124,110,247,0.1); color: var(--accent2); border: 1px solid rgba(124,110,247,0.2); }
+.scrubber-row { display: flex; align-items: center; gap: 10px; }
+.scrubber-label { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
+.scrubber { flex: 1; accent-color: var(--accent); height: 3px; }
+.scrubber-time { font-family: var(--mono); font-size: 0.65rem; color: var(--accent2); min-width: 38px; text-align: right; }
+.use-frame-btn { font-family: var(--mono); font-size: 0.68rem; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(124,110,247,0.4); background: rgba(124,110,247,0.1); color: var(--accent2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.use-frame-btn:hover { background: rgba(124,110,247,0.2); }
+.use-frame-btn.confirmed { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.1); color: var(--success); }
+
+.statusbar { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; padding: 0.55rem 1.75rem; border-top: 1px solid var(--border); background: var(--surface); font-family: var(--mono); font-size: 0.67rem; color: var(--muted); }
+.stat { display: flex; align-items: center; gap: 5px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot.green { background: var(--success); }
+.dot.purple { background: var(--accent); }
+.dot.red { background: var(--danger); }
+.hint { margin-left: auto; color: var(--muted2); }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+@media (max-width: 680px) {
+  .img-row { grid-template-columns: 64px 1fr 36px; }
+  .cell-kw { display: none; }
+  .field-inline input { width: 120px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.5">
+        <rect x="1" y="1" width="6" height="6" rx="1.5"/>
+        <rect x="9" y="1" width="6" height="6" rx="1.5"/>
+        <rect x="1" y="9" width="6" height="6" rx="1.5"/>
+        <rect x="9" y="9" width="6" height="6" rx="1.5"/>
+      </svg>
+    </div>
+    StockSEO
+  </div>
+  <div class="header-right">
+    <span class="badge">POWERED BY CLAUDE</span>
+    <button class="btn success" id="exportBtn" disabled>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV for Xpiks
+    </button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="field-inline">
+    <label>PLATFORM</label>
+    <select id="platform">
+      <option value="adobe">Adobe Stock</option>
+      <option value="shutterstock">Shutterstock</option>
+      <option value="getty">Getty Images</option>
+      <option value="generic">Generic</option>
+    </select>
+  </div>
+  <div class="sep"></div>
+  <div class="field-inline">
+    <label>KEYWORDS</label>
+    <select id="kwCount">
+      <option value="30">30</option>
+      <option value="40" selected>40</option>
+      <option value="50">50</option>
+    </select>
+  </div>
+  <div class="sep"></div>
+  <div class="field-inline">
+    <label>CONTEXT</label>
+    <input type="text" id="extraContext" placeholder="e.g. Kraków, fashion model">
+  </div>
+  <div class="sep"></div>
+  <button class="btn primary" id="generateAllBtn" disabled>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    <span id="genLabel">Generate all</span>
+  </button>
+  <button class="btn" id="clearAllBtn" disabled>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    Clear all
+  </button>
+</div>
+
+<div class="upload-area">
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="image/*,video/mp4,video/quicktime" multiple>
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div>
+      <div class="upload-title">Drop images or videos here</div>
+      <div class="upload-sub">JPG, PNG, WEBP + MP4 — portraits, landscapes, videos all supported</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="empty-state" id="emptyState">
+    <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="8" y="12" width="48" height="36" rx="4"/>
+      <circle cx="22" cy="26" r="6"/>
+      <path d="M8 36l14-10 10 8 10-12 14 16"/>
+    </svg>
+    <p>Upload images or MP4 videos to get started.<br>Pick a frame for videos, then generate<br>descriptions and keywords for all.</p>
+  </div>
+  <div class="img-grid" id="imgGrid"></div>
+</div>
+
+<div class="statusbar" id="statusBar" style="display:none">
+  <div class="stat"><div class="dot green"></div><span id="statDone">0 done</span></div>
+  <div class="stat"><div class="dot purple"></div><span id="statPending">0 pending</span></div>
+  <div class="stat"><div class="dot red"></div><span id="statErr">0 errors</span></div>
+  <div class="hint">Click a description to edit before exporting</div>
+</div>
+
+<script>
+const items = [];
+let isRunning = false;
+
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const imgGrid = document.getElementById('imgGrid');
+const emptyState = document.getElementById('emptyState');
+const generateAllBtn = document.getElementById('generateAllBtn');
+const clearAllBtn = document.getElementById('clearAllBtn');
+const exportBtn = document.getElementById('exportBtn');
+const statusBar = document.getElementById('statusBar');
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+// ── Image compression ──────────────────────────────────────────
+function compressImage(file, callback) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      const maxDim = 1920;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      callback(dataUrl.split(',')[1], 'image/jpeg');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── File handling ──────────────────────────────────────────────
+function addFiles(files) {
+  Array.from(files).forEach(file => {
+    if (file.type.startsWith('image/')) {
+      const id = uid();
+      compressImage(file, (b64, mime) => {
+        items.push({ id, b64, mime, name: file.name, desc: null, kws: [], status: 'pending', errMsg: '', isVideo: false });
+        appendImageRow(items[items.length - 1]);
+        syncUI();
+      });
+    } else if (file.type === 'video/mp4' || file.type === 'video/quicktime' || file.name.endsWith('.mp4')) {
+      const id = uid();
+      const item = { id, file, name: file.name, b64: null, mime: 'image/jpeg', desc: null, kws: [], status: 'pending', errMsg: '', isVideo: true, resolution: '', duration: 0, selectedTime: 0 };
+      items.push(item);
+      appendVideoCard(item);
+      syncUI();
+    }
+  });
+}
+
+fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
+
+// ── Image row ──────────────────────────────────────────────────
+function appendImageRow(item) {
+  emptyState.style.display = 'none';
+  const row = document.createElement('div');
+  row.id = 'row-' + item.id;
+  row.className = 'img-row';
+  row.innerHTML = `
+    <div class="cell-thumb"><img src="data:${item.mime};base64,${item.b64}" alt=""></div>
+    <div class="cell-meta">
+      <div class="cell-fname">${escHtml(item.name)}</div>
+      <div class="cell-desc placeholder" id="desc-${item.id}">Waiting to generate…</div>
+    </div>
+    <div class="cell-kw placeholder" id="kw-${item.id}">—</div>
+    <div class="cell-actions">
+      <button class="icon-btn" title="Re-generate" onclick="regenItem('${item.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+      </button>
+      <button class="icon-btn danger" title="Remove" onclick="removeItem('${item.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </div>`;
+  imgGrid.appendChild(row);
+}
+
+// ── Video card ─────────────────────────────────────────────────
+function appendVideoCard(item) {
+  emptyState.style.display = 'none';
+  const card = document.createElement('div');
+  card.id = 'row-' + item.id;
+  card.className = 'video-card';
+  card.innerHTML = `
+    <div class="video-preview-wrap">
+      <div class="video-preview-inner">
+        <div class="video-thumb-wrap">
+          <canvas id="canvas-${item.id}" width="120" height="68"></canvas>
+          <div class="video-badge" id="badge-${item.id}">loading…</div>
+        </div>
+        <div class="video-info">
+          <div class="video-fname">${escHtml(item.name)}</div>
+          <div class="video-meta-tags" id="metatags-${item.id}"></div>
+          <div class="cell-desc placeholder" id="desc-${item.id}">Waiting to generate…</div>
+        </div>
+        <div class="cell-actions" style="border-left:none">
+          <button class="icon-btn" title="Re-generate" onclick="regenItem('${item.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          </button>
+          <button class="icon-btn danger" title="Remove" onclick="removeItem('${item.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="scrubber-row">
+        <span class="scrubber-label">PICK FRAME</span>
+        <input type="range" class="scrubber" id="scrub-${item.id}" min="0" max="100" value="10" step="0.1">
+        <span class="scrubber-time" id="scrubtime-${item.id}">0.0s</span>
+        <button class="use-frame-btn" id="useframe-${item.id}" onclick="confirmFrame('${item.id}')">✓ Use this frame</button>
+      </div>
+      <div class="cell-kw placeholder" id="kw-${item.id}" style="max-height:none;padding:6px 0 0">—</div>
+    </div>`;
+  imgGrid.appendChild(card);
+  loadVideoPreview(item);
+}
+
+function loadVideoPreview(item) {
+  const video = document.createElement('video');
+  video.src = URL.createObjectURL(item.file);
+  video.muted = true;
+  video.preload = 'metadata';
+
+  video.addEventListener('loadedmetadata', () => {
+    item.duration = video.duration;
+    item.resolution = video.videoWidth + 'x' + video.videoHeight;
+
+    // Detect resolution label
+    let resLabel = video.videoHeight >= 2160 ? '4K' : video.videoHeight >= 1080 ? '1080p' : video.videoHeight >= 720 ? '720p' : 'HD';
+    item.resLabel = resLabel;
+
+    const metaTags = document.getElementById('metatags-' + item.id);
+    if (metaTags) {
+      metaTags.innerHTML = `
+        <span class="meta-tag">${resLabel}</span>
+        <span class="meta-tag">${video.videoWidth}×${video.videoHeight}</span>
+        <span class="meta-tag">${video.duration.toFixed(1)}s</span>
+        <span class="meta-tag">MP4</span>`;
+    }
+
+    const scrubber = document.getElementById('scrub-' + item.id);
+    scrubber.addEventListener('input', () => {
+      const t = (scrubber.value / 100) * item.duration;
+      item.selectedTime = t;
+      document.getElementById('scrubtime-' + item.id).textContent = t.toFixed(1) + 's';
+      video.currentTime = t;
+    });
+
+    video.addEventListener('seeked', () => drawFrame(video, item));
+
+    // Draw initial frame at 10%
+    video.currentTime = item.duration * 0.1;
+    item.selectedTime = item.duration * 0.1;
+    document.getElementById('scrubtime-' + item.id).textContent = item.selectedTime.toFixed(1) + 's';
+
+    const badge = document.getElementById('badge-' + item.id);
+    if (badge) badge.textContent = resLabel;
+  });
+
+  item._video = video;
+}
+
+function drawFrame(video, item) {
+  const canvas = document.getElementById('canvas-' + item.id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // Capture full-res frame for API
+  const fullCanvas = document.createElement('canvas');
+  fullCanvas.width = Math.min(video.videoWidth, 1920);
+  fullCanvas.height = Math.round(video.videoHeight * (fullCanvas.width / video.videoWidth));
+  fullCanvas.getContext('2d').drawImage(video, 0, 0, fullCanvas.width, fullCanvas.height);
+  item.b64 = fullCanvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+  item.mime = 'image/jpeg';
+}
+
+function confirmFrame(id) {
+  const item = items.find(i => i.id === id);
+  if (!item || !item.b64) return;
+  const btn = document.getElementById('useframe-' + id);
+  btn.textContent = '✓ Frame confirmed';
+  btn.classList.add('confirmed');
+  setTimeout(() => { btn.textContent = '✓ Use this frame'; btn.classList.remove('confirmed'); }, 2000);
+}
+
+// ── Status / rendering ─────────────────────────────────────────
+function setStatus(item, s) {
+  item.status = s;
+  const row = document.getElementById('row-' + item.id);
+  if (!row) return;
+  row.className = (item.isVideo ? 'video-card' : 'img-row') + ' ' + (s === 'error' ? 'error-state' : s);
+  if (!item.isVideo) {
+    const thumb = row.querySelector('.cell-thumb');
+    const existing = thumb.querySelector('.cell-spinner');
+    if (s === 'processing') {
+      if (!existing) { const d = document.createElement('div'); d.className = 'cell-spinner'; d.innerHTML = '<div class="spin-lg"></div>'; thumb.appendChild(d); }
+    } else { if (existing) existing.remove(); }
+  }
+}
+
+function renderRowContent(item) {
+  const descEl = document.getElementById('desc-' + item.id);
+  const kwEl = document.getElementById('kw-' + item.id);
+  if (!descEl || !kwEl) return;
+
+  if (item.status === 'done') {
+    descEl.className = 'cell-desc';
+    descEl.setAttribute('contenteditable', 'true');
+    descEl.textContent = item.desc;
+    descEl.oninput = () => { item.desc = descEl.textContent.trim(); };
+    kwEl.className = 'cell-kw';
+    kwEl.innerHTML = '';
+    item.kws.slice(0, 11).forEach(k => { const t = document.createElement('span'); t.className = 'kw-tag'; t.textContent = k; kwEl.appendChild(t); });
+    if (item.kws.length > 11) { const m = document.createElement('span'); m.className = 'kw-more'; m.textContent = '+' + (item.kws.length - 11); kwEl.appendChild(m); }
+  } else if (item.status === 'error') {
+    descEl.className = 'cell-desc placeholder';
+    descEl.removeAttribute('contenteditable');
+    descEl.textContent = item.errMsg || 'Failed — click re-generate';
+    kwEl.className = 'cell-kw placeholder'; kwEl.textContent = '—';
+  } else if (item.status === 'processing') {
+    descEl.className = 'cell-desc placeholder';
+    descEl.removeAttribute('contenteditable');
+    descEl.textContent = 'Generating…';
+    kwEl.className = 'cell-kw placeholder'; kwEl.textContent = '—';
+  } else {
+    descEl.className = 'cell-desc placeholder';
+    descEl.removeAttribute('contenteditable');
+    descEl.textContent = 'Waiting to generate…';
+    kwEl.className = 'cell-kw placeholder'; kwEl.textContent = '—';
+  }
+}
+
+function syncUI() {
+  const any = items.length > 0;
+  const pending = items.filter(i => i.status === 'pending').length;
+  const done = items.filter(i => i.status === 'done').length;
+  const err = items.filter(i => i.status === 'error').length;
+  const proc = items.filter(i => i.status === 'processing').length;
+  generateAllBtn.disabled = (!pending && !isRunning) || isRunning;
+  clearAllBtn.disabled = !any || isRunning;
+  exportBtn.disabled = done === 0;
+  statusBar.style.display = any ? 'flex' : 'none';
+  if (!any) emptyState.style.display = 'flex';
+  document.getElementById('statDone').textContent = done + ' done';
+  document.getElementById('statPending').textContent = (pending + proc) + ' pending';
+  document.getElementById('statErr').textContent = err + ' error' + (err !== 1 ? 's' : '');
+}
+
+// ── API call ───────────────────────────────────────────────────
+async function processItem(item) {
+  if (item.isVideo && !item.b64) {
+    // Wait briefly for frame to be ready
+    await new Promise(r => setTimeout(r, 500));
+    if (!item.b64) { item.errMsg = 'No frame captured yet — scrub the video first'; item.status = 'error'; renderRowContent(item); syncUI(); return; }
+  }
+
+  setStatus(item, 'processing');
+  renderRowContent(item);
+  syncUI();
+
+  const platform = document.getElementById('platform').value;
+  const kwCount = document.getElementById('kwCount').value;
+  const context = document.getElementById('extraContext').value.trim();
+
+  try {
+    const res = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: item.b64,
+        mimeType: item.mime,
+        platform,
+        kwCount,
+        context,
+        isVideo: item.isVideo,
+        videoMeta: item.isVideo ? { resolution: item.resolution, resLabel: item.resLabel, duration: item.duration } : null
+      })
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('Server error — please try again'); }
+    if (data.error) throw new Error(data.error);
+    item.desc = data.description || '';
+    item.kws = data.keywords || [];
+    setStatus(item, 'done');
+  } catch (e) {
+    item.errMsg = e.message || 'Unknown error';
+    setStatus(item, 'error');
+  }
+  renderRowContent(item);
+  syncUI();
+}
+
+async function runAll() {
+  if (isRunning) return;
+  isRunning = true;
+  generateAllBtn.innerHTML = '<div class="spin"></div><span>Generating…</span>';
+  generateAllBtn.disabled = true;
+  const queue = items.filter(i => i.status === 'pending');
+  for (const item of queue) await processItem(item);
+  isRunning = false;
+  generateAllBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Generate all</span>`;
+  syncUI();
+}
+
+generateAllBtn.addEventListener('click', runAll);
+
+window.regenItem = async function(id) {
+  if (isRunning) return;
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  item.status = 'pending';
+  isRunning = true;
+  syncUI();
+  await processItem(item);
+  isRunning = false;
+  syncUI();
+};
+
+window.removeItem = function(id) {
+  if (isRunning) return;
+  const idx = items.findIndex(i => i.id === id);
+  if (idx === -1) return;
+  const item = items[idx];
+  if (item.isVideo && item._video) URL.revokeObjectURL(item._video.src);
+  items.splice(idx, 1);
+  const row = document.getElementById('row-' + id);
+  if (row) row.remove();
+  if (!items.length) emptyState.style.display = 'flex';
+  syncUI();
+};
+
+clearAllBtn.addEventListener('click', () => {
+  if (isRunning) return;
+  items.forEach(i => { if (i.isVideo && i._video) URL.revokeObjectURL(i._video.src); });
+  items.length = 0;
+  imgGrid.innerHTML = '';
+  emptyState.style.display = 'flex';
+  syncUI();
+});
+
+exportBtn.addEventListener('click', () => {
+  const done = items.filter(i => i.status === 'done');
+  if (!done.length) return;
+  const rows = [['Filename', 'Description', 'Keywords']];
+  done.forEach(item => {
+    const e = s => '"' + String(s).replace(/"/g, '""') + '"';
+    rows.push([e(item.name), e(item.desc || ''), e((item.kws || []).join(', '))]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'xpiks_metadata.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
